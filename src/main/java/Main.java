@@ -1,4 +1,4 @@
-
+1
 import com.schoolcanteen.dao.DatabaseInitializer;
 import com.schoolcanteen.dao.UserDao;
 import com.schoolcanteen.ui.Authentication;
