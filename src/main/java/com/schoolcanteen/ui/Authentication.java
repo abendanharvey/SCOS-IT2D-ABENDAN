@@ -21,21 +21,20 @@ public class Authentication {
         boolean running = true;
 
         while (running) {
-            System.out.println("\n====================================");
-            System.out.println("   SCHOOL CANTEEN ORDERING SYSTEM");
-            System.out.println("====================================");
-            System.out.println("1. Register Account");
+            System.out.println("\n========== SCHOOL CANTEEN SYSTEM ==========");
+            System.out.println("1. Register");
             System.out.println("2. Login");
             System.out.println("0. Exit");
-            System.out.print("Choose an option: ");
+            System.out.println("===========================================");
 
+            System.out.print("Enter choice: ");
             String choice = scanner.nextLine().trim();
 
             switch (choice) {
                 case "1" -> register();
                 case "2" -> login();
                 case "0" -> {
-                    System.out.println("Thank you for using the system!");
+                    System.out.println("Thank you for using the system.");
                     running = false;
                 }
                 default -> System.out.println("Invalid choice. Please try again.");
@@ -44,27 +43,28 @@ public class Authentication {
     }
 
     private void register() {
-        System.out.println("\n=== REGISTER ACCOUNT ===");
+        System.out.println("\n========== USER REGISTRATION ==========");
 
-        System.out.print("Full Name: ");
+        System.out.print("Enter Full Name: ");
         String fullName = scanner.nextLine().trim();
 
-        System.out.print("Username: ");
+        System.out.print("Enter Username: ");
         String username = scanner.nextLine().trim();
 
-        System.out.print("Password: ");
-        String password = scanner.nextLine();
+        System.out.print("Enter Password: ");
+        String password = scanner.nextLine().trim();
 
-        System.out.print("Email: ");
+        System.out.print("Enter Email: ");
         String email = scanner.nextLine().trim();
 
         System.out.println("\nSelect Role:");
-        System.out.println("1. Student");
-        System.out.println("2. Canteen Staff");
-        System.out.println("3. Admin");
-        System.out.print("Choose role: ");
+        System.out.println("1. STUDENT");
+        System.out.println("2. CANTEEN_STAFF");
+        System.out.println("3. ADMIN");
+        System.out.print("Enter choice: ");
 
         String roleChoice = scanner.nextLine().trim();
+
         String role;
 
         switch (roleChoice) {
@@ -72,7 +72,7 @@ public class Authentication {
             case "2" -> role = "CANTEEN_STAFF";
             case "3" -> role = "ADMIN";
             default -> {
-                System.out.println("Invalid role. Registration cancelled.");
+                System.out.println("Invalid role selection.");
                 return;
             }
         }
@@ -84,30 +84,31 @@ public class Authentication {
         }
 
         try {
-            boolean registered = userDao.registerUser(
-                    fullName, username, password, role, email);
+            userDao.registerUser(
+                    fullName,
+                    username,
+                    password,
+                    role,
+                    email
+            );
 
-            if (registered) {
-                System.out.println(
-                        "Registration successful! Your account is PENDING approval.");
-            } else {
-                System.out.println("Registration failed.");
-            }
+            System.out.println(
+                    "Registration successful! Your account is PENDING approval."
+            );
 
         } catch (SQLException e) {
-            System.out.println(
-                    "Registration failed. The username may already exist.");
+            System.out.println("Registration failed. Username may already exist.");
         }
     }
 
     private void login() {
-        System.out.println("\n=== LOGIN ===");
+        System.out.println("\n========== USER LOGIN ==========");
 
-        System.out.print("Username: ");
+        System.out.print("Enter Username: ");
         String username = scanner.nextLine().trim();
 
-        System.out.print("Password: ");
-        String password = scanner.nextLine();
+        System.out.print("Enter Password: ");
+        String password = scanner.nextLine().trim();
 
         try {
             User user = userDao.findByUsername(username);
@@ -117,35 +118,49 @@ public class Authentication {
                 return;
             }
 
-            if (!"APPROVED".equalsIgnoreCase(user.accountStatus())) {
+            if (!user.accountStatus().equalsIgnoreCase("APPROVED")) {
                 System.out.println(
-                        "Your account is PENDING approval. Please contact an administrator.");
+                        "Your account is still pending approval."
+                );
                 return;
             }
 
-            System.out.println("Login successful! Welcome, "
-                    + user.fullName() + ".");
+            System.out.println(
+                    "Login successful! Welcome, " + user.fullName() + "."
+            );
 
             routeUser(user);
 
         } catch (SQLException e) {
-            System.out.println("Login failed: " + e.getMessage());
+            System.out.println("Login failed due to a database error.");
+            e.printStackTrace();
         }
     }
 
     private void routeUser(User user) {
-        switch (user.role()) {
-            case "STUDENT" ->
-                    System.out.println("Opening Student Menu...");
-            case "CANTEEN_STAFF" ->
-                    System.out.println("Opening Canteen Staff Menu...");
+        switch (user.role().toUpperCase()) {
+
+            case "STUDENT" -> {
+                System.out.println("\n========== STUDENT MENU ==========");
+                System.out.println("Welcome, Student!");
+            }
+
+            case "CANTEEN_STAFF" -> {
+                System.out.println("\n========== CANTEEN STAFF MENU ==========");
+                System.out.println("Welcome, Canteen Staff!");
+            }
+
             case "ADMIN" -> {
-                System.out.println("Opening Admin Menu...");
-                AdminMenu adminMenu = new AdminMenu(userDao, scanner);
+                System.out.println("\nOpening Admin Menu...");
+                AdminMenu adminMenu = new AdminMenu(
+                        userDao,
+                        scanner,
+                        user
+                );
                 adminMenu.start();
             }
-            default ->
-                    System.out.println("Unknown user role.");
+
+            default -> System.out.println("Unknown user role.");
         }
     }
 }

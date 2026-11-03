@@ -1,4 +1,3 @@
-
 package com.schoolcanteen.dao;
 
 import java.sql.Connection;
