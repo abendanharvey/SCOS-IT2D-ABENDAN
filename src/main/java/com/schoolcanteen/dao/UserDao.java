@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -74,7 +75,7 @@ public class UserDao {
         return null;
     }
 
-    // Get all registered users, regardless of role or status.
+    // Get all registered users.
     public List<User> getAllUsers() throws SQLException {
 
         List<User> users = new ArrayList<>();
@@ -106,7 +107,7 @@ public class UserDao {
         return users;
     }
 
-    // Get users whose accounts are awaiting approval.
+    // Get users awaiting approval.
     public List<User> getPendingUsers() throws SQLException {
 
         List<User> users = new ArrayList<>();
@@ -142,8 +143,17 @@ public class UserDao {
         return users;
     }
 
-    // Approve a pending account using its user ID.
+    // Approve an account.
+    // This version keeps compatibility with existing calls.
     public boolean approveUser(int userId) throws SQLException {
+        return approveUser(userId, null);
+    }
+
+    // Approve an account and record the administrator who performed it.
+    public boolean approveUser(
+            int targetUserId,
+            Integer adminUserId
+    ) throws SQLException {
 
         String sql = """
                 UPDATE Users
@@ -152,22 +162,64 @@ public class UserDao {
                   AND account_status = ?
                 """;
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection()) {
 
-            statement.setString(1, "APPROVED");
-            statement.setInt(2, userId);
-            statement.setString(3, "PENDING");
+            connection.setAutoCommit(false);
 
-            return statement.executeUpdate() == 1;
+            try {
+                int updatedRows;
+
+                try (PreparedStatement statement =
+                             connection.prepareStatement(sql)) {
+
+                    statement.setString(1, "APPROVED");
+                    statement.setInt(2, targetUserId);
+                    statement.setString(3, "PENDING");
+
+                    updatedRows = statement.executeUpdate();
+                }
+
+                if (updatedRows != 1) {
+                    connection.rollback();
+                    return false;
+                }
+
+                insertActivityLog(
+                        connection,
+                        adminUserId,
+                        "USER_APPROVED",
+                        "Administrator approved user ID: " + targetUserId
+                );
+
+                connection.commit();
+                return true;
+
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
+            }
         }
     }
 
     // Update a user's role and account status.
+    // This version keeps compatibility with existing calls.
     public boolean updateUserRoleAndStatus(
             int userId,
             String newRole,
             String newStatus
+    ) throws SQLException {
+
+        return updateUserRoleAndStatus(
+                userId, newRole, newStatus, null
+        );
+    }
+
+    // Update a user and record the administrator who performed it.
+    public boolean updateUserRoleAndStatus(
+            int targetUserId,
+            String newRole,
+            String newStatus,
+            Integer adminUserId
     ) throws SQLException {
 
         String sql = """
@@ -176,14 +228,78 @@ public class UserDao {
                 WHERE user_id = ?
                 """;
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        String role = newRole.toUpperCase();
+        String status = newStatus.toUpperCase();
 
-            statement.setString(1, newRole.toUpperCase());
-            statement.setString(2, newStatus.toUpperCase());
-            statement.setInt(3, userId);
+        try (Connection connection = DatabaseConnection.getConnection()) {
 
-            return statement.executeUpdate() == 1;
+            connection.setAutoCommit(false);
+
+            try {
+                int updatedRows;
+
+                try (PreparedStatement statement =
+                             connection.prepareStatement(sql)) {
+
+                    statement.setString(1, role);
+                    statement.setString(2, status);
+                    statement.setInt(3, targetUserId);
+
+                    updatedRows = statement.executeUpdate();
+                }
+
+                if (updatedRows != 1) {
+                    connection.rollback();
+                    return false;
+                }
+
+                insertActivityLog(
+                        connection,
+                        adminUserId,
+                        "USER_UPDATED",
+                        "Administrator updated user ID: "
+                                + targetUserId
+                                + " | New Role: " + role
+                                + " | New Status: " + status
+                );
+
+                connection.commit();
+                return true;
+
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
+            }
+        }
+    }
+
+    // Insert an activity record using the same database transaction.
+    private void insertActivityLog(
+            Connection connection,
+            Integer adminUserId,
+            String eventType,
+            String description
+    ) throws SQLException {
+
+        String sql = """
+                INSERT INTO Activity_Logs
+                (user_id, event_type, event_description)
+                VALUES (?, ?, ?)
+                """;
+
+        try (PreparedStatement statement =
+                     connection.prepareStatement(sql)) {
+
+            if (adminUserId == null || adminUserId <= 0) {
+                statement.setNull(1, Types.INTEGER);
+            } else {
+                statement.setInt(1, adminUserId);
+            }
+
+            statement.setString(2, eventType);
+            statement.setString(3, description);
+
+            statement.executeUpdate();
         }
     }
 }
