@@ -2,6 +2,7 @@
 package com.schoolcanteen.ui;
 
 import com.schoolcanteen.dao.UserDao;
+import com.schoolcanteen.dao.ActivityLogDao;
 import com.schoolcanteen.model.User;
 
 import java.sql.SQLException;
@@ -10,10 +11,12 @@ import java.util.Scanner;
 public class Authentication {
 
     private final UserDao userDao;
+    private final ActivityLogDao activityLogDao;
     private final Scanner scanner;
 
     public Authentication(UserDao userDao, Scanner scanner) {
         this.userDao = userDao;
+        this.activityLogDao = new ActivityLogDao();
         this.scanner = scanner;
     }
 
@@ -34,14 +37,19 @@ public class Authentication {
                 case "1" -> register();
                 case "2" -> login();
                 case "0" -> {
-                    System.out.println("Thank you for using the system.");
+                    System.out.println(
+                            "Thank you for using the system."
+                    );
                     running = false;
                 }
-                default -> System.out.println("Invalid choice. Please try again.");
+                default -> System.out.println(
+                        "Invalid choice. Please try again."
+                );
             }
         }
     }
 
+    // USER REGISTRATION
     private void register() {
         System.out.println("\n========== USER REGISTRATION ==========");
 
@@ -61,8 +69,8 @@ public class Authentication {
         System.out.println("1. STUDENT");
         System.out.println("2. CANTEEN_STAFF");
         System.out.println("3. ADMIN");
-        System.out.print("Enter choice: ");
 
+        System.out.print("Enter choice: ");
         String roleChoice = scanner.nextLine().trim();
 
         String role;
@@ -79,6 +87,7 @@ public class Authentication {
 
         if (fullName.isEmpty() || username.isEmpty()
                 || password.isEmpty() || email.isEmpty()) {
+
             System.out.println("All fields are required.");
             return;
         }
@@ -97,10 +106,14 @@ public class Authentication {
             );
 
         } catch (SQLException e) {
-            System.out.println("Registration failed. Username may already exist.");
+            System.out.println(
+                    "Registration failed. Username may already exist."
+            );
+            e.printStackTrace();
         }
     }
 
+    // USER LOGIN
     private void login() {
         System.out.println("\n========== USER LOGIN ==========");
 
@@ -129,34 +142,67 @@ public class Authentication {
                     "Login successful! Welcome, " + user.fullName() + "."
             );
 
+            // RECORD SUCCESSFUL LOGIN
+            activityLogDao.logAction(
+                    user.userId(),
+                    "LOGIN",
+                    "User " + user.username() + " logged in."
+            );
+
+            System.out.println(
+                    "Login activity recorded successfully."
+            );
+
+            // OPEN USER MENU
             routeUser(user);
 
+            // RECORD LOGOUT AFTER USER EXITS THEIR MENU
+            activityLogDao.logAction(
+                    user.userId(),
+                    "LOGOUT",
+                    "User " + user.username() + " logged out."
+            );
+
+            System.out.println(
+                    "Logout activity recorded successfully."
+            );
+
         } catch (SQLException e) {
-            System.out.println("Login failed due to a database error.");
+            System.out.println(
+                    "Login or activity logging failed due to a database error."
+            );
             e.printStackTrace();
         }
     }
 
+    // ROLE-BASED USER ROUTING
     private void routeUser(User user) {
+
         switch (user.role().toUpperCase()) {
 
             case "STUDENT" -> {
-                System.out.println("\n========== STUDENT MENU ==========");
+                System.out.println(
+                        "\n========== STUDENT MENU =========="
+                );
                 System.out.println("Welcome, Student!");
             }
 
             case "CANTEEN_STAFF" -> {
-                System.out.println("\n========== CANTEEN STAFF MENU ==========");
+                System.out.println(
+                        "\n========== CANTEEN STAFF MENU =========="
+                );
                 System.out.println("Welcome, Canteen Staff!");
             }
 
             case "ADMIN" -> {
                 System.out.println("\nOpening Admin Menu...");
+
                 AdminMenu adminMenu = new AdminMenu(
                         userDao,
                         scanner,
                         user
                 );
+
                 adminMenu.start();
             }
 
